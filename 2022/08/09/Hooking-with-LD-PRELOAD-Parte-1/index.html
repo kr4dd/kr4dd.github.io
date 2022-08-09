@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="google-site-verification" content="TZE0rZyIqLl10trYu3BWBWa1Vmz6HFwhb2OcNEK4u-s" />
+     <link rel="shortcut icon" href= /img/favicon.ico >
+    <title>
+        Home :: kr4dd
+    </title>
+    <meta name="description" content= This is my website where I publise things that i made in me free time, something like articles, investigation, tools, and so on. >
+    <meta name="keywords" content= Cibersecurity,Hacking,SysAdmin >
+    
+<link rel="stylesheet" href="/libs/highlight/styles/monokai-sublime.css">
+
+    
+<link rel="stylesheet" href="/libs/font-awesome/css/font-awesome.min.css">
+
+    
+<link rel="stylesheet" href="/css/style.css">
+
+<meta name="generator" content="Hexo 6.1.0"></head>
+<body id="bodyx">
+    <div class="hd posts">
+    <a href="/index.html"><i class="fa fa-home
+ replay-btn" aria-hidden="true"></i></a>
+    <div class="post-title">
+        <p>
+            Hooking with LD_PRELOAD Parte 1
+        </p>
+        <hr>
+    </div>
+    <div class="post-content">
+        <h1 id="Lab-Setup"><a href="#Lab-Setup" class="headerlink" title="Lab Setup"></a>Lab Setup</h1><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">git <span class="built_in">clone</span> [https://github.com/leonjza/frida-boot](https://www.youtube.com/redirect?event=video_description&amp;redir_token=QUFFLUhqazAzUlppU0M4TmtUNEZmYXJGM09TREVHa0lDd3xBQ3Jtc0trQlNhUDZHMVYzSFUzSFp1eWhnV3FYR2JhbkI2dzJNYlpTMVZFQUEzNXdpREt5LWtvT2RURWdlUjRsR3JNS1EyeGZGZVFlSmFBN2ZLUGw2VWV5LW1TWk5sVDVGMEVXM284SG1LUFVzNmpqRGpaT1ZNMA&amp;q=https%3A%2F%2Fgithub.com%2Fleonjza%2Ffrida-boot)</span><br><span class="line"></span><br><span class="line"><span class="built_in">cd</span> frida-boot</span><br><span class="line"></span><br><span class="line">./docker.sh pull</span><br><span class="line"></span><br><span class="line">./docker.sh run</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>Para abrir varias sesiones podemos usar:</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">tmux</span><br><span class="line">ó</span><br><span class="line">docker exc -it frida-boot /bin/bash</span><br></pre></td></tr></table></figure>
+
+<h1 id="Parte-1"><a href="#Parte-1" class="headerlink" title="Parte 1"></a>Parte 1</h1><p>Copiar pew.c a carpeta code</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cp</span> software/pew.c code/</span><br><span class="line"></span><br><span class="line"><span class="built_in">cd</span> !$</span><br></pre></td></tr></table></figure>
+
+<p>Compilarlo</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">gcc pew.c -o pew</span><br><span class="line"></span><br><span class="line">./pew</span><br></pre></td></tr></table></figure>
+
+<p>LD_PRELOAD</p>
+<p>Lista addicional, específica de usuario, objectos compartidos de tipo ELF que se cargan antes que otros.</p>
+<p>Esta característica se usa para hacer override a funciones de otros objetos compartidos</p>
+<p>Librerías compartidas en <strong>pew.c</strong>, cada vez que lo ejecutamos cambian las direcciones dado que son dinámicas.</p>
+<img src="/2022/08/09/Hooking-with-LD-PRELOAD-Parte-1/img1.png" class="">
+
+<p>Librerías compartidas en un binario estático:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">gcc -static pew.c -o pew-static</span><br><span class="line"></span><br><span class="line">ldd pew-static</span><br></pre></td></tr></table></figure>
+
+<p>Nuestro programa <strong>pew</strong>, usa librerías estandar <em><strong>libc</strong></em></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sleep</span>();</span><br><span class="line"></span><br><span class="line"><span class="built_in">printf</span>();</span><br></pre></td></tr></table></figure>
+
+<p>Crearemos un sleep falso basado en la librería real de Unix, y luego lo compilaremos y crearemos una librería compartida:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gcc -fPIC -shared fake_sleep.c -o fake_sleep.so</span><br></pre></td></tr></table></figure>
+
+<img src="/2022/08/09/Hooking-with-LD-PRELOAD-Parte-1/img2.png" class="">
+
+<p>Correr <strong>pew</strong> con nuestra implementación de librerías compartida, como podemos observar nunca funciona el sleeping</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LD_PRELOAD=./fake_sleep.so ./pew</span><br></pre></td></tr></table></figure>
+
+<p>sleep() proxy:</p>
+<img src="/2022/08/09/Hooking-with-LD-PRELOAD-Parte-1/img3.png" class="">
+
+<p>Compilaremos el fake_sleep 2, buscamos unir ld-linux para dlsym:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gcc -fPIC -shared fake_sleep.c -p fake_sleep.so -ldl</span><br></pre></td></tr></table></figure>
+
+<img src="/2022/08/09/Hooking-with-LD-PRELOAD-Parte-1/img4.png" class="">
+
+<h2 id="Conclusiones"><a href="#Conclusiones" class="headerlink" title="Conclusiones:"></a>Conclusiones:</h2><p>Las librerías compartidas pueden sobreescribir funciones.</p>
+<p>Sobreescribir funciones puede ser interesante para alterar el resultado.</p>
+
+    </div>
+
+    
+</div>
+    <div class="footer" id="footer">
+    <p><h4>Copyright © 2022 | Author: kr4dd</h4>
+        <label class="el-switch el-switch-blue el-switch-sm" style="vertical-align: sub;">
+            <input type="checkbox" name="switch" id="update_style">
+            <span class="el-switch-style"></span>
+        </label>
+    </p>
+</div>
+<input type="hidden" id="web_style" value="black">
+<input type="hidden" id="valine_appid" value="NOsswOncKgc8HOxqo9oxIWlX-gzGzoHsz">
+<input type="hidden" id="valine_appKey" value="z1FihjWEbS8uIfUQdmCtK7zz">
+
+<script src="/libs/jquery.min.js"></script>
+
+
+<script src="/libs/highlight/highlight.pack.js"></script>
+
+<!--<script src='//cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>-->
+
+<script src="/js/js.js"></script>
+
+<style type="text/css">
+.v * {
+color: #698fca;
+}
+.v .vlist .vcard .vhead .vsys {
+color: #3a3e4a;
+}
+.v .vlist .vcard .vh .vmeta .vat {
+color: #638fd5;
+}
+.v .vlist .vcard .vhead .vnick {
+color: #6ba1ff;
+}
+.v a {
+color: #8696b1;
+}
+.v .vlist .vcard .vhead .vnick:hover {
+color: #669bfc;
+}
+</style>
+    <script type="text/javascript" color="173,174,173" opacity='1' zIndex="-2" count="99" src="//cdn.bootcss.com/canvas-nest.js/1.0.0/canvas-nest.min.js"></script>
+</body>
+</html>
