@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="google-site-verification" content="TZE0rZyIqLl10trYu3BWBWa1Vmz6HFwhb2OcNEK4u-s" />
+     <link rel="shortcut icon" href= /img/favicon.ico >
+    <title>
+        Home :: kr4dd
+    </title>
+    <meta name="description" content= I publise things that i made in me free time. >
+    <meta name="keywords" content= Cybersecurity, Hacking, Redteam >
+    
+<link rel="stylesheet" href="/libs/highlight/styles/monokai-sublime.css">
+
+    
+<link rel="stylesheet" href="/libs/font-awesome/css/font-awesome.min.css">
+
+    
+<link rel="stylesheet" href="/css/style.css">
+
+<meta name="generator" content="Hexo 6.1.0"></head>
+<body id="bodyx">
+    <div class="hd posts">
+    <a href="/index.html"><i class="fa fa-home
+ replay-btn" aria-hidden="true"></i></a>
+    <div class="post-title">
+        <p>
+            Hooking with LD_PRELOAD Parte 2
+        </p>
+        <hr>
+    </div>
+    <div class="post-content">
+        <h1 id="Parte-2"><a href="#Parte-2" class="headerlink" title="Parte 2"></a>Parte 2</h1><p>Enumerar <strong>pew</strong> con <strong>nm</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">nm -D pew</span><br></pre></td></tr></table></figure>
+
+<img src="/2022/08/10/Hooking-with-LD-PRELOAD-Parte-2/img1.png" class="">
+
+<p>Under the hood of LD_PRELOAD using gdb:</p>
+<p>q	-	quit gdb</p>
+<p>r	-	run the program</p>
+<p>b	-	set a breakpoint</p>
+<p>s	-	step over an instruction</p>
+<p>si	-	step into an instruction</p>
+<p>info func	-	show available functions</p>
+<p>info break	-	show available breakpoints</p>
+<p>del <index>	-	delete a breakpoint</p>
+<p>Start debugging <strong>pew</strong> with <strong>gdb</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gdb -q ./pew</span><br></pre></td></tr></table></figure>
+
+<p>Desensamblar <strong>main</strong>, en búsqueda de llamadas:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gef&gt; disassemble main</span><br></pre></td></tr></table></figure>
+
+<p><strong>plt</strong> (Dynamic linker) {Función trampolín hacia el printf(), real}:</p>
+<p>0x00000000000011f5 &lt;+72&gt;:    call   0x1040 &lt;printf@**plt**&gt;</p>
+<p>Ahora correremos <strong>pew</strong> en <strong>gdb</strong>, y pondremos un breakpoint en <em><strong>main</strong></em>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">gef&gt; b *main</span><br><span class="line">gef&gt; info breakpoints</span><br><span class="line">gef&gt; r</span><br></pre></td></tr></table></figure>
+
+<p>Como se puede observar existen distintas partes como:</p>
+<p><strong>stack:</strong> donde almacenamos en memoria.</p>
+<p><strong>code</strong>: en código máquina.</p>
+<p><strong>trace:</strong> nos dice la ruta dinámica que sigue la función.</p>
+<p>Por ahora nos centraremos en <strong>code</strong> y <strong>stack</strong>:</p>
+<p>Partiendo de lo anterior!</p>
+<p>Usaremos <strong>si</strong>, que nos permite saltar a la siguiente intrucción:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gef&gt; si</span><br></pre></td></tr></table></figure>
+
+<p>Lanzaremos varias veces <strong>si</strong> hasta después de llamar a la función <strong>put@plt</strong>:</p>
+<img src="/2022/08/10/Hooking-with-LD-PRELOAD-Parte-2/img2.png" class="">
+
+<p>Ahora saltaremos al contenido de la función con con <strong>s</strong>:</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gef&gt; s</span><br></pre></td></tr></table></figure>
+
+<p>El <strong>dynamic linker</strong> resuelve la localicación real de <strong>puts</strong> en <strong>libc</strong>:</p>
+<p>Estas localizaciones se guardan en la <strong>global offset table</strong></p>
+<p>La siguiente llamada a <strong>puts</strong> será <strong>jmp</strong> hacia la localización en <strong>got</strong> y no invocará al linker.</p>
+<img src="/2022/08/10/Hooking-with-LD-PRELOAD-Parte-2/img3.png" class="">
+
+<p>Usando <strong>got</strong> como referencia, podemos preguntar al gdb que nos diga donde se encuentra el símbolo localizado.</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">gef&gt; info symbol 0x7fe4f478c5f0</span><br><span class="line">puts <span class="keyword">in</span> section .text of /lib/x86_64-linux-gnu/libc.so.6</span><br><span class="line"></span><br><span class="line">gef&gt; info symbol 0x55728b63d046</span><br><span class="line"><span class="built_in">printf</span>@plt + 6 <span class="keyword">in</span> section .plt of /root/code/pew</span><br></pre></td></tr></table></figure>
+
+<p>Fijémonos de manera más cercana en <strong>printf</strong>:</p>
+<p>Disassemble the main function with</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gef&gt; disas main</span><br></pre></td></tr></table></figure>
+
+<p>Buscar la dirección donde se da la primera llamada a <strong>printf@plt</strong></p>
+<p>Fijar un breakpoint en la dirección donde ocurre con *addr</p>
+<ol>
+<li><p>Aprendiendo un poco más sobre el <strong>dynamic linker,</strong> debería ayudarnos a entender como <strong>LD_PRELOAD</strong> funciona.</p>
+</li>
+<li><p>Debugeamos <strong>pew</strong> con <strong>LD_PRELOAD</strong>:</p>
+</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">gdb -q ./pew</span><br><span class="line"></span><br><span class="line">b *main</span><br><span class="line"></span><br><span class="line"><span class="built_in">set</span> environment LD_PRELOAD ./fake_sleep.so</span><br><span class="line"></span><br><span class="line">show environment</span><br><span class="line"></span><br><span class="line">r</span><br><span class="line"></span><br><span class="line">vmmap ó info proc mappings <span class="comment">#Ver si fake_sleep.so se ha cargado</span></span><br></pre></td></tr></table></figure>
+
+<img src="/2022/08/10/Hooking-with-LD-PRELOAD-Parte-2/img4.png" class="">
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">disas main</span><br><span class="line">b *&lt;direcciónSleep&gt;</span><br><span class="line">c <span class="comment">#Continuamos la ejecución</span></span><br><span class="line">got</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">gef&gt; info symbol &lt;direcciónDelSleepConGot&gt;</span><br><span class="line"><span class="built_in">sleep</span> <span class="keyword">in</span> section .text of ./fake_sleep.so</span><br></pre></td></tr></table></figure>
+
+<p><strong>break</strong> la instrucción que llama al registro <strong>RDX</strong>:</p>
+<p>Continuar la ejecución hasta que el breakpoint es golpeado.</p>
+<p>Inspeccionar la dirección dentro de <strong>RDX</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">disas <span class="built_in">sleep</span></span><br><span class="line">b *&lt;direcciónDelRegistroRDX&gt;</span><br><span class="line">info br</span><br><span class="line">c</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">gef&gt;  info symbol <span class="variable">$rdx</span></span><br><span class="line"><span class="built_in">sleep</span> <span class="keyword">in</span> section .text of /lib/x86_64-linux-gnu/libc.so.6</span><br></pre></td></tr></table></figure>
+
+<img src="/2022/08/10/Hooking-with-LD-PRELOAD-Parte-2/img5.png" class="">
+    </div>
+
+    
+</div>
+    <div class="footer" id="footer">
+    <p><h4>Copyright © 2022 | Author: kr4dd</h4>
+        <label class="el-switch el-switch-blue el-switch-sm" style="vertical-align: sub;">
+            <input type="checkbox" name="switch" id="update_style">
+            <span class="el-switch-style"></span>
+        </label>
+    </p>
+</div>
+<input type="hidden" id="web_style" value="black">
+<input type="hidden" id="valine_appid" value="NOsswOncKgc8HOxqo9oxIWlX-gzGzoHsz">
+<input type="hidden" id="valine_appKey" value="z1FihjWEbS8uIfUQdmCtK7zz">
+
+<script src="/libs/jquery.min.js"></script>
+
+
+<script src="/libs/highlight/highlight.pack.js"></script>
+
+<!--<script src='//cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>-->
+
+<script src="/js/js.js"></script>
+
+<style type="text/css">
+.v * {
+color: #698fca;
+}
+.v .vlist .vcard .vhead .vsys {
+color: #3a3e4a;
+}
+.v .vlist .vcard .vh .vmeta .vat {
+color: #638fd5;
+}
+.v .vlist .vcard .vhead .vnick {
+color: #6ba1ff;
+}
+.v a {
+color: #8696b1;
+}
+.v .vlist .vcard .vhead .vnick:hover {
+color: #669bfc;
+}
+</style>
+    <script type="text/javascript" color="173,174,173" opacity='1' zIndex="-2" count="99" src="//cdn.bootcss.com/canvas-nest.js/1.0.0/canvas-nest.min.js"></script>
+</body>
+</html>
