@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="google-site-verification" content="TZE0rZyIqLl10trYu3BWBWa1Vmz6HFwhb2OcNEK4u-s" />
+     <link rel="shortcut icon" href= /img/favicon.ico >
+    <title>
+        Home :: kr4dd
+    </title>
+    <meta name="description" content= I publise things that i made in me free time. >
+    <meta name="keywords" content= Cybersecurity, Hacking, Redteam >
+    
+<link rel="stylesheet" href="/libs/highlight/styles/monokai-sublime.css">
+
+    
+<link rel="stylesheet" href="/libs/font-awesome/css/font-awesome.min.css">
+
+    
+<link rel="stylesheet" href="/css/style.css">
+
+<meta name="generator" content="Hexo 6.1.0"></head>
+<body id="bodyx">
+    <div class="hd posts">
+    <a href="/index.html"><i class="fa fa-home
+ replay-btn" aria-hidden="true"></i></a>
+    <div class="post-title">
+        <p>
+            Hooking with frida Parte 2
+        </p>
+        <hr>
+    </div>
+    <div class="post-content">
+        <h1 id="Parte-2"><a href="#Parte-2" class="headerlink" title="Parte 2"></a>Parte 2</h1><ul>
+<li><p>La primera parte de la API de frida que trataremos será el:</p>
+<ul>
+<li>Interceptor.attach(target, callbacks);</li>
+</ul>
+<p>  target to attach to <strong>offsets</strong> || <strong>symbols</strong>
+  </p>
+</li>
+<li><p>Resolviendo sleep() estáticamente:</p>
+</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">nm pew | grep <span class="built_in">sleep</span></span><br><span class="line">ldd pew</span><br></pre></td></tr></table></figure>
+
+<img src="/2022/08/12/Hooking-with-frida-Parte-2/img1.png" class="">
+
+<p><em>Podemos ver que sleep se encuentra en la dirección 0xcb340</em></p>
+<ul>
+<li>Confirmar el offset de sleep():<ul>
+<li>Iniciar una sesión de debugeo de <em>pew</em>.</li>
+<li>Poner un breakpoint en main y correr programa con <strong>r</strong>.</li>
+<li>Buscar <strong>info proc map&#x2F;vmmap</strong> para <strong>libc</strong>.</li>
+<li>Coger el mapped offset y añadir 0xcb340 dentro de info <strong>symbol 0x00007f8565226000 + 0xcb340</strong></li>
+</ul>
+</li>
+</ul>
+<img src="/2022/08/12/Hooking-with-frida-Parte-2/img2.png" class="">
+
+<p>Al sumar al inicio la dirección en la que comienza la ejecución, conseguimos el punto donde se da la llamada a sleep.</p>
+<ul>
+<li><p>Resolver <strong>sleep</strong>() con Frida:</p>
+<ul>
+<li>Calcular el offset y <strong>add</strong>() a <strong>Module.getBaseAddress</strong>()</li>
+<li>Usar <strong>Module.getExportByName</strong>()</li>
+<li>Usar <strong>Debug.Symbol.getFunctionByName</strong>()</li>
+</ul>
+</li>
+<li><p><strong>sleep</strong>() con frida y offset</p>
+</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">frida pew</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[Local::pew]-&gt; Process.enumerateModulesSync().filter(r =&gt; r.name == <span class="string">&quot;libc-2.30.so&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>Ó</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">[Local::pew]-&gt; Process.getModuleByName(<span class="string">&quot;libc-2.31.so&quot;</span>);</span><br><span class="line">Ó</span><br><span class="line">[Local::pew]-&gt; Process.getModuleByName(<span class="string">&quot;libc-2.31.so&quot;</span>).base;</span><br><span class="line">Ó</span><br><span class="line">[Local::pew]-&gt; Module.getBaseAddress(<span class="string">&quot;libc-2.31.so&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<img src="/2022/08/12/Hooking-with-frida-Parte-2/img3.png" class="">
+
+<ul>
+<li>Enumerar los exports del módulo:</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Local::pew]-&gt; Process.getModuleByName(<span class="string">&quot;libc-2.31.so&quot;</span>).enumerateExports();</span><br><span class="line"></span><br><span class="line">Ó</span><br><span class="line"></span><br><span class="line">[Local::pew]-&gt; Module.getExportByName(null, <span class="string">&quot;sleep&quot;</span>);</span><br><span class="line"><span class="string">&quot;0x7f310f7d1340&quot;</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>Debugear symbol:</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[Local::pew]-&gt; DebugSymbol.getFunctionByName(<span class="string">&quot;sleep&quot;</span>);</span><br><span class="line"><span class="string">&quot;0x7f310f7d1340&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><em>Llegados a este punto tenemos el target, ahora faltan las callbacks</em></p>
+<ul>
+<li>Callbacks:</li>
+</ul>
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">Interceptor</span>.<span class="title function_">attach</span>(sleepPtr, &#123;</span><br><span class="line">	<span class="attr">onEnter</span>: <span class="keyword">function</span>(<span class="params">args</span>) &#123;&#125;,</span><br><span class="line">	<span class="attr">onLeave</span>: <span class="keyword">function</span>(<span class="params">retval</span>) &#123;&#125;</span><br><span class="line"></span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>interceptor-attach.js</li>
+</ul>
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">var</span> sleep = <span class="title class_">Module</span>.<span class="title function_">getExportByName</span>(<span class="literal">null</span>, <span class="string">&quot;sleep&quot;</span>); <span class="comment">// Obtener el offset</span></span><br><span class="line"></span><br><span class="line"><span class="title class_">Interceptor</span>.<span class="title function_">attach</span>(sleep, &#123;</span><br><span class="line">	<span class="attr">onEnter</span>: <span class="keyword">function</span>(<span class="params">args</span>) &#123;</span><br><span class="line">		<span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;[*] Sleep from Frida!&quot;</span>);</span><br><span class="line">	&#125;,</span><br><span class="line"></span><br><span class="line">	<span class="attr">onLeave</span>: <span class="keyword">function</span>(<span class="params">retval</span>) &#123;</span><br><span class="line">		<span class="variable language_">console</span>.<span class="title function_">log</span>(<span class="string">&quot;[*] Done sleeping from Frida!&quot;</span>);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<p>Ahora debemos ejecutarlo tal que (Al se attach, debe estar corriendo):</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">frida pew -l interceptor-attach.js</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>Que le hace el attach a <strong>sleep</strong>():</p>
+<ul>
+<li>attach gdb a la instancia que corre de <strong>pew</strong>, mientras la intrumentación está corriendo con <strong>gdb -q -p $(pidof pew)</strong></li>
+</ul>
+<p>  Desensamblar la función <strong>sleep</strong> y echar un ojo al comienzo con</p>
+  <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">disas <span class="built_in">sleep</span></span><br></pre></td></tr></table></figure>
+<p>  Si nos damos cuenta, la dirección de <strong>sleep</strong> a cambiado, y tenemos 0x7f5124fec340 que es la que obtuvimos con Module.getExportByName(null, “sleep”);</p>
+  <img src="/2022/08/12/Hooking-with-frida-Parte-2/img4.png" class="">
+</li>
+<li><p>Si detenemos la instrumentación de <em><strong>interceptor-attach.js</strong></em>, veremos que la dirección y código máquina cambian.</p>
+<ul>
+<li><strong>CON INSTRUMENTACION</strong></li>
+</ul>
+  <img src="/2022/08/12/Hooking-with-frida-Parte-2/img5.png" class="">
+<ul>
+<li><strong>SIN INSTRUMENTACION</strong></li>
+</ul>
+  <img src="/2022/08/12/Hooking-with-frida-Parte-2/img6.png" class=""></li>
+</ul>
+
+    </div>
+
+    
+</div>
+    <div class="footer" id="footer">
+    <p><h4>Copyright © 2022 | Author: kr4dd</h4>
+        <label class="el-switch el-switch-blue el-switch-sm" style="vertical-align: sub;">
+            <input type="checkbox" name="switch" id="update_style">
+            <span class="el-switch-style"></span>
+        </label>
+    </p>
+</div>
+<input type="hidden" id="web_style" value="black">
+<input type="hidden" id="valine_appid" value="NOsswOncKgc8HOxqo9oxIWlX-gzGzoHsz">
+<input type="hidden" id="valine_appKey" value="z1FihjWEbS8uIfUQdmCtK7zz">
+
+<script src="/libs/jquery.min.js"></script>
+
+
+<script src="/libs/highlight/highlight.pack.js"></script>
+
+<!--<script src='//cdn.jsdelivr.net/npm/valine@1.3.10/dist/Valine.min.js'></script>-->
+
+<script src="/js/js.js"></script>
+
+<style type="text/css">
+.v * {
+color: #698fca;
+}
+.v .vlist .vcard .vhead .vsys {
+color: #3a3e4a;
+}
+.v .vlist .vcard .vh .vmeta .vat {
+color: #638fd5;
+}
+.v .vlist .vcard .vhead .vnick {
+color: #6ba1ff;
+}
+.v a {
+color: #8696b1;
+}
+.v .vlist .vcard .vhead .vnick:hover {
+color: #669bfc;
+}
+</style>
+    <script type="text/javascript" color="173,174,173" opacity='1' zIndex="-2" count="99" src="//cdn.bootcss.com/canvas-nest.js/1.0.0/canvas-nest.min.js"></script>
+</body>
+</html>
