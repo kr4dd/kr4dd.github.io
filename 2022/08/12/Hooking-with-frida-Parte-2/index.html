@@ -112,7 +112,7 @@
 </ul>
 <p>  Desensamblar la función <strong>sleep</strong> y echar un ojo al comienzo con</p>
   <figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">disas <span class="built_in">sleep</span></span><br></pre></td></tr></table></figure>
-<p>  Si nos damos cuenta, la dirección de <strong>sleep</strong> a cambiado, y tenemos 0x7f5124fec340 que es la que obtuvimos con Module.getExportByName(null, “sleep”);</p>
+<p>  Si nos damos cuenta, la dirección de <strong>sleep</strong> ha cambiado, y tenemos 0x7f5124fec340 que es la que obtuvimos con Module.getExportByName(null, “sleep”);</p>
   <img src="/2022/08/12/Hooking-with-frida-Parte-2/img4.png" class="">
 </li>
 <li><p>Si detenemos la instrumentación de <em><strong>interceptor-attach.js</strong></em>, veremos que la dirección y código máquina cambian.</p>
